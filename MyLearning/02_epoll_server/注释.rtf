@@ -1,0 +1,144 @@
+{\rtf1\ansi\ansicpg936\cocoartf2867
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset134 PingFangSC-Regular;\f1\fnil\fcharset0 AppleColorEmoji;\f2\fnil\fcharset134 PingFangSC-Semibold;
+\f3\fnil\fcharset0 Menlo-Regular;\f4\froman\fcharset0 Times-Roman;}
+{\colortbl;\red255\green255\blue255;\red251\green0\blue7;\red0\green0\blue0;\red0\green0\blue0;
+\red36\green255\blue255;\red255\green255\blue11;\red253\green139\blue9;\red193\green193\blue193;\red88\green137\blue67;
+\red193\green193\blue193;\red141\green213\blue254;\red203\green203\blue202;\red36\green255\blue255;\red212\green213\blue153;
+\red71\green138\blue206;\red193\green193\blue193;\red142\green213\blue255;}
+{\*\expandedcolortbl;;\cssrgb\c100000\c12195\c0;\cssrgb\c0\c0\c0;\cssrgb\c0\c1\c1;
+\cssrgb\c4983\c100000\c100000;\cssrgb\c100000\c100000\c0;\cssrgb\c100000\c61456\c0;\cssrgb\c80000\c80000\c80000;\cssrgb\c41481\c59899\c33082;
+\cssrgb\c80176\c80176\c79976;\cssrgb\c61545\c86704\c99884;\cssrgb\c83320\c83320\c83112;\cssrgb\c4983\c100000\c100000;\cssrgb\c86232\c86184\c66253;
+\cssrgb\c34146\c61677\c84338;\cssrgb\c80088\c80088\c79988;\cssrgb\c61729\c86918\c100000;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\qc\partightenfactor0
+
+\f0\fs48 \cf2 \expnd0\expndtw0\kerning0
+epoll\'d1\'a7\'cf\'b0\'b1\'ca\'bc\'c7
+\fs24 \cf3 \
+\pard\pardeftab720\partightenfactor0
+
+\fs28 \cf3 // ==========================================\
+// 
+\f1 \uc0\u55358 \u56979 
+\f0  Epoll \'b5\'da\'b6\'fe\'b0\'e5\'b8\'ab\'a3\'ba\'b8\'f8\'b9\'dc\'bc\'d2\'c5\'c9\'bb\'ee (Ctl - Add)\
+// ==========================================\
+\pard\pardeftab720\partightenfactor0
+\cf4 struct epoll_event event;\
+event.data.fd=listenfd;\
+event.events=EPOLLIN;\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\b \cf5 event.data.fd\cf0  = \cf6 listenfd//\'d2\'bb\'bf\'aa\'ca\'bc\'bd\'a8\'c1\'a2socket\'b5\'c4\'b2\'ce\'ca\'fd
+\f0\b0 \cf0 \
+\pard\tx220\tx720\pardeftab720\li720\fi-720\partightenfactor0
+\ls1\ilvl0
+\f2\b \cf0 \kerning1\expnd0\expndtw0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\'b1\'c8\'d3\'f7
+\f0\b0 \'a3\'ba\'d4\'da\'b1\'e3\'c0\'fb\'cc\'f9\'c9\'cf\'d0\'b4\'cf\'c2\'a1\'b0\'d5\'e2\'b2\'bf\'b5\'e7\'bb\'b0\'ca\'c7\'c7\'b0\'cc\'a8\'d7\'f9\'bb\'fa\'a1\'b1\'a1\'a3\
+\ls1\ilvl0
+\f2\b \kerning1\expnd0\expndtw0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\'ba\'ac\'d2\'e5
+\f0\b0 \'a3\'ba
+\f2\b \'b9\'d8\'c1\'aa\'c9\'ed\'b7\'dd
+\f0\b0 \'a1\'a3\
+\ls1\ilvl0
+\f2\b \kerning1\expnd0\expndtw0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\'d7\'f7\'d3\'c3
+\f0\b0 \'a3\'ba\'d2\'f2\'ce\'aa Epoll \'b9\'dc\'bc\'d2\'d6\'bb\'b8\'ba\'d4\'f0\'cd\'a8\'d6\'aa\'a1\'b0\'d3\'d0\'b6\'af\'be\'b2\'a1\'b1\'a3\'ac\'b2\'bb\'b8\'ba\'d4\'f0\'bc\'c7\'ca\'c7\'cb\'ad\'a1\'a3\'c4\'e3\'b1\'d8\'d0\'eb\'b0\'d1 listenfd \'b4\'e6\'bd\'f8\'c8\'a5\'a1\'a3\'b5\'c8\'ca\'c2\'bc\'fe\'b7\'a2\'c9\'fa\'ca\'b1\'a3\'ac\'b9\'dc\'bc\'d2\'bb\'e1\'b0\'d1\'d5\'e2\'d5\'c5\'b1\'e3\'c0\'fb\'cc\'f9\'d4\'ad\'d1\'f9\'bb\'b9\'b8\'f8\'c4\'e3\'a3\'ac\'c4\'e3\'b6\'c1\'c8\'a1 data.fd \'be\'cd\'c4\'dc\'d6\'aa\'b5\'c0\'ca\'c7\'c4\'c4\'b8\'f6 Socket \'d3\'d0\'ca\'fd\'be\'dd\'c1\'cb\'a1\'a3\
+\pard\tx720\pardeftab720\partightenfactor0
+\cf0 \
+\pard\pardeftab720\partightenfactor0
+
+\f2\b \cf5 event.events\cf0  = EPOLLIN; //
+\fs24 \cf6 \'c4\'ac\'c8\'cf\'c4\'a3\'ca\'bd (LT)
+\f0\b0\fs28 \cf0 \
+
+\f2\b \cf5 event.events =  \cf3 EPOLLIN | EPOLLET; //
+\fs24 \cf6 \'b8\'df\'cb\'d9\'c4\'a3\'ca\'bd (ET)\
+\
+\pard\pardeftab720\sl288\slmult1\partightenfactor0
+
+\fs32 \cf3 //\'a1\'be\cf2 Epoll \'b9\'a4\'d7\'f7\'c4\'a3\'ca\'bd\cf3 \'b6\'d4\'b1\'c8\'b1\'ca\'bc\'c7\'a3\'baLT vs ET\'a1\'bf
+\fs26 \
+\cf2 \'d2\'bb\'a1\'a2LT \'c4\'a3\'ca\'bd\cf3  (Level Triggered - \'cb\'ae\'c6\'bd\'b4\'a5\'b7\'a2)\
+-----------------------------------------------------------\
+1. \'b6\'a8\'d2\'e5\'a3\'ba\
+   Epoll \'b5\'c4\'a1\'be\'c4\'ac\'c8\'cf\'c4\'a3\'ca\'bd\'a1\'bf\'a1\'a3\'c8\'e7\'b9\'fb\'b2\'bb\'bc\'d3\'c8\'ce\'ba\'ce\'d0\'de\'ca\'ce\'a3\'ac\'be\'cd\'ca\'c7 LT\'a1\'a3\
+2. \'b4\'a5\'b7\'a2\'bb\'fa\'d6\'c6\'a3\'ba\
+   \'d6\'bb\'d2\'aa\'c4\'da\'ba\'cb\'bb\'ba\'b3\'e5\'c7\'f8\'c0\'ef\'a1\'be\cf6 \'bb\'b9\'d3\'d0\'ca\'fd\'be\'dd\cf3 \'a1\'bf\'a3\'acEpoll \'be\'cd\'bb\'e1\'a1\'be\cf6 \'d2\'bb\'d6\'b1\'cd\'a8\'d6\'aa\cf3 \'a1\'bf\'c4\'e3\'a1\'a3\
+   \'a3\'a8\'c4\'c4\'c5\'c2\'c4\'e3\'c9\'cf\'d2\'bb\'b4\'ce\'d6\'bb\'b6\'c1\'c1\'cb\'d2\'bb\'b0\'eb\'a3\'ac\'cf\'c2\'d2\'bb\'c2\'d6\'d1\'ad\'bb\'b7\'cb\'fc\'bb\'b9\'bb\'e1\'b4\'df\'c4\'e3\'b6\'c1\'ca\'a3\'cf\'c2\'b5\'c4\'a3\'a9\
+3. \'d3\'c5\'c8\'b1\'b5\'e3\'a3\'ba\
+   [+] \'b1\'e0\'b3\'cc\'bc\'f2\'b5\'a5\'a3\'ac\'b2\'bb\'d2\'d7\'b6\'aa\'ca\'fd\'be\'dd\'a3\'a8\'cd\'fc\'c1\'cb\'b6\'c1\'d2\'b2\'c3\'bb\'ca\'c2\'a3\'ac\'cf\'c2\'b4\'ce\'bb\'b9\'bb\'e1\'cc\'e1\'d0\'d1\'a3\'a9\'a1\'a3\
+   [-] \'d0\'a7\'c2\'ca\'c9\'d4\'b5\'cd\'a3\'a8\'c3\'bb\'b6\'c1\'cd\'ea\'bb\'e1\'d6\'d8\'b8\'b4\'b4\'a5\'b7\'a2\'d6\'d0\'b6\'cf\'a3\'ac\'b4\'f2\'c8\'c5 CPU\'a3\'a9\'a1\'a3\
+4. \'ca\'ca\'d3\'c3\'b3\'a1\'be\'b0\'a3\'ba\
+   \'b3\'f5\'d1\'a7\'d5\'df\'c8\'eb\'c3\'c5\'a1\'a2\'b6\'d4\'b2\'a2\'b7\'a2\'d2\'aa\'c7\'f3\'b2\'bb\'ca\'c7\'bc\'ab\'d6\'c2\'b1\'e4\'cc\'ac\'b8\'df\'b5\'c4\'b3\'a1\'be\'b0\'a1\'a3\
+\
+\
+\cf2 \'b6\'fe\'a1\'a2ET \'c4\'a3\'ca\'bd\cf3  (Edge Triggered - \'b1\'df\'d4\'b5\'b4\'a5\'b7\'a2)\
+-----------------------------------------------------------\
+1. \'b6\'a8\'d2\'e5\'a3\'ba\
+   Epoll \'b5\'c4\'a1\'be\'b8\'df\'cb\'d9\'c4\'a3\'ca\'bd\'a1\'bf\'a1\'a3TinyWebServer \'b5\'c8\'b8\'df\'d0\'d4\'c4\'dc\'b7\'fe\'ce\'f1\'c6\'f7\'b5\'c4\'ba\'cb\'d0\'c4\'a1\'a3\
+2. \'b4\'a5\'b7\'a2\'bb\'fa\'d6\'c6\'a3\'ba\
+   \'d6\'bb\'d3\'d0\'b5\'b1\'ca\'fd\'be\'dd\'a1\'be\'b4\'d3\'ce\'de\'b5\'bd\'d3\'d0\'a1\'bf\'a3\'a8\'bc\'b4\'d7\'b4\'cc\'ac\'b7\'a2\'c9\'fa\'b1\'e4\'bb\'af/\'b1\'df\'d4\'b5\'cd\'bb\'b1\'e4\'a3\'a9\'b5\'c4\'c4\'c7\'d2\'bb\'cb\'b2\'bc\'e4\'a3\'acEpoll \'b2\'c5\'cd\'a8\'d6\'aa\'a1\'be\'d2\'bb\'b4\'ce\'a1\'bf\'a1\'a3\
+   \'a3\'a8\'c8\'e7\'b9\'fb\'c4\'e3\'d2\'bb\'b4\'ce\'c3\'bb\'b6\'c1\'cd\'ea\'a3\'ac\'cb\'fc\cf7 \'a1\'be\'be\'f8\'b6\'d4\'b2\'bb\'bb\'e1\'a1\'bf\'d4\'d9\'cd\'a8\'d6\'aa\'b5\'da\'b6\'fe\'b4\'ce\cf3 \'a3\'ac\'ca\'a3\'cf\'c2\'b5\'c4\'ca\'fd\'be\'dd\'be\'cd\'cb\'c0\'cb\'f8\'d4\'da\'bb\'ba\'b3\'e5\'c7\'f8\'c0\'ef\'c1\'cb\'a3\'a9\
+\cf6 3. \'c9\'fa\'bb\'ee\'b1\'c8\'d3\'f7 (\'b8\'df\'c0\'e4\'b5\'c4\'c0\'cf\'c2\'e8)\'a3\'ba\
+   \'a1\'b0\'b7\'b9\'d7\'f6\'ba\'c3\'c1\'cb\'a1\'a3\'a1\'b1 (\'d6\'bb\'cb\'b5\'d2\'bb\'b4\'ce)\
+   \'c8\'e7\'b9\'fb\'c4\'e3\'d6\'bb\'b3\'d4\'c1\'cb\'d2\'bb\'bf\'da\'be\'cd\'c8\'a5\'cd\'e6\'c1\'cb\'a3\'ac\'cb\'fd\'d4\'d9\'d2\'b2\'b2\'bb\'bb\'e1\'bd\'d0\'c4\'e3\'a1\'a3\
+   \'b5\'c8\'c4\'e3\'b6\'f6\'c1\'cb\'cf\'eb\'d4\'d9\'b3\'d4\'a3\'ac\'b7\'a2\'cf\'d6\'b7\'b9\'d2\'d1\'be\'ad\'b5\'b9\'c1\'cb\'a3\'a8\'bb\'f2\'d5\'df\'c4\'e3\'b8\'f9\'b1\'be\'b2\'bb\'d6\'aa\'b5\'c0\'bb\'b9\'d3\'d0\'b7\'b9\'a3\'a9\'a1\'a3\cf3 \
+4. \'d3\'c5\'c8\'b1\'b5\'e3\'a3\'ba\
+   [+] \'d0\'a7\'c2\'ca\'bc\'ab\'b8\'df\'a3\'a8\'bc\'f5\'c9\'d9\'c1\'cb\'c4\'da\'ba\'cb\'d6\'d8\'b8\'b4\'cd\'a8\'d6\'aa\'b5\'c4\'b4\'ce\'ca\'fd\'a3\'a9\'a1\'a3\
+   [-] \'b1\'e0\'b3\'cc\'c4\'d1\'b6\'c8\'b4\'f3\'a3\'a8\'b1\'d8\'d0\'eb\'d1\'ad\'bb\'b7\'b6\'c1\'c8\'a1\'d6\'b1\'b5\'bd\'b1\'a8\'b4\'ed EAGAIN\'a3\'ac\'b1\'d8\'d0\'eb\'c5\'e4\'ba\'cf\'b7\'c7\'d7\'e8\'c8\'fb IO\'a3\'a9\'a1\'a3\
+5. \'ba\'cb\'d0\'c4\'d2\'aa\'c7\'f3\'a3\'ba\
+   \'b1\'d8\'d0\'eb\'d2\'bb\'b4\'ce\'d0\'d4\'b0\'d1\'ca\'fd\'be\'dd\'b6\'c1\'b8\'c9\'be\'bb\'a3\'a1(while \'d1\'ad\'bb\'b7 recv)\
+
+\f3\b0\fs24 \cf8 \
+\pard\tx720\tx1440\pardeftab720\partightenfactor0
+
+\f4 \cf0 \
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs26 \cf3 \outl0\strokewidth0 \strokec9 // \'b0\'d1\'b1\'e3\'c7\'a9\'cc\'f5\'cc\'f9\'b5\'bd\'b9\'dc\'bc\'d2\'c9\'ed\'c9\'cf (\'cd\'f9\'c4\'da\'ba\'cb\'ca\'c2\'bc\'fe\'b1\'ed\'c0\'ef\'cc\'ed\'bc\'d3)\strokec10 \
+ \strokec11 ret\strokec12 =\cf13 \strokec14 epoll_ctl\cf3 \strokec10 (\strokec11 epollfd\strokec10 ,\strokec15 EPOLL_CTL_ADD\strokec10 ,\strokec11 listenfd\strokec10 ,\strokec12 &\strokec11 event\strokec10 );\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec16 \
+\'d2\'bb\'a1\'a2\'ba\'af\'ca\'fd\'d4\'ad\'d0\'cd\'d3\'eb\'d7\'f7\'d3\'c3\
+// \'d7\'f7\'d3\'c3\
+Epoll \'b5\'c4\'a1\'b0\'bf\'d8\'d6\'c6\'d6\'d0\'d0\'c4\'a1\'b1\'a1\'a3\'b8\'ba\'d4\'f0\'b9\'dc\'c0\'ed\'bc\'e0\'bf\'d8\'c3\'fb\'b5\'a5\'a3\'a8\'d4\'f6\'a1\'a2\'c9\'be\'a1\'a2\'b8\'c4\'a3\'a9\'a1\'a3\
+\'c8\'e7\'b9\'fb epoll_create \'ca\'c7\'c2\'f2\'b1\'be\'d7\'d3\'a3\'acepoll_ctl \'be\'cd\'ca\'c7\'d4\'da\'b1\'be\'d7\'d3\'c9\'cf\'d0\'b4\'d7\'d6\'a1\'a3\
+\
+\'b6\'fe\'a1\'a2\'b2\'ce\'ca\'fd\'d6\'f0\'b8\'f6\'bd\'e2\'ce\'f6\
+
+\f2\b 1. 
+\fs28 \cf13 \outl0\strokewidth0 epollfd
+\fs26 \cf3 \outl0\strokewidth0 \strokec16 \
+   - \cf6 \strokec10 epoll_create\cf3 \strokec16  \'b7\'b5\'bb\'d8\'b5\'c4\'c4\'c7\'b8\'f6 \cf6 \strokec10 ID\cf3 \strokec16 \'a1\'a3
+\f0\b0 \
+   - \'d6\'b8\'b6\'a8\'b2\'d9\'d7\'f7\'c4\'c4\'d2\'bb\'b8\'f6 Epoll \'ca\'b5\'c0\'fd\'a1\'a3\
+\
+2. - \'b6\'af\'d7\'f7\'d6\'b8\'c1\'ee (Operation)\'a1\'a3\'c8\'fd\'b8\'f6\'bf\'c9\'d1\'a1\'ba\'ea\'b6\'a8\'d2\'e5\'a3\'ba\
+     A. \cf13 \strokec10 EPOLL_CTL_ADD\cf3 \strokec16  (\'d7\'a2\'b2\'e1)\'a3\'ba\'b0\'d1 fd \'bc\'d3\'bd\'f8\'c8\'a5\'a3\'a8\'d7\'ee\'b3\'a3\'d3\'c3\'a3\'a9\'a1\'a3\
+     B. \cf13 \strokec10 EPOLL_CTL_MOD\cf3 \strokec16  (\'d0\'de\'b8\'c4)\'a3\'ba\'b8\'c4\'bc\'e0\'cc\'fd\'ca\'c2\'bc\'fe\'a3\'a8\'b1\'c8\'c8\'e7\'b4\'d3\'a1\'b0\'d6\'bb\'b6\'c1\'a1\'b1\'b8\'c4\'b3\'c9\'a1\'b0\'b6\'c1\'d0\'b4\'a1\'b1\'a3\'a9\'a1\'a3\
+     C. \cf13 \strokec10 EPOLL_CTL_DEL\cf3 \strokec16  (\'c9\'be\'b3\'fd)\'a3\'ba\'b0\'d1 fd \'cc\'df\'b3\'f6\'c3\'fb\'b5\'a5\'a3\'a8\'b2\'bb\'d4\'d9\'bc\'e0\'bf\'d8\'a3\'a9\'a1\'a3\
+\
+3. - \'c4\'bf\'b1\'ea\'ce\'c4\'bc\'fe\'c3\'e8\'ca\'f6\'b7\'fb (\'c8\'e7 listenfd \'bb\'f2 connfd)\'a1\'a3\
+   - \'d2\'b2\'be\'cd\'ca\'c7\'c4\'e3\'d2\'aa\'bc\'e0\'bf\'d8\'b5\'c4\'be\'df\'cc\'e5\'b6\'d4\'cf\'f3\'a1\'a3\
+\
+4. struct epoll_event *event (\'d4\'f5\'c3\'b4\'bc\'c7\'a3\'bf)\
+   - \'d6\'b8\'cf\'f2 epoll_event \'bd\'e1\'b9\'b9\'cc\'e5\'b5\'c4\'d6\'b8\'d5\'eb\'a3\'a8\'d2\'b2\'be\'cd\'ca\'c7\'c4\'c7\'d5\'c5\'b1\'e3\'c0\'fb\'cc\'f9\'a3\'a9\'a1\'a3\
+   - \'c4\'da\'ba\'ac \cf6 \strokec10 events (\'bc\'e0\'cc\'fd\'ca\'b2\'c3\'b4\'c0\'e0\'d0\'cd) \cf3 \strokec16 \'ba\'cd \cf6 \strokec10 data (\'b9\'d8\'c1\'aa\'ca\'fd\'be\'dd)\cf3 \strokec16 \'a1\'a3\
+   - \'a1\'be\'d6\'d8\'b5\'e3\'a1\'bf\'c4\'da\'ba\'cb\'bb\'e1\'a1\'be\'bf\'bd\'b1\'b4\'a1\'bf\'d2\'bb\'b7\'dd\'d5\'e2\'b8\'f6\'bd\'e1\'b9\'b9\'cc\'e5\'b5\'c4\'ca\'fd\'be\'dd\'b4\'e6\'c6\'f0\'c0\'b4\'a1\'a3\
+     (\'d5\'e2\'d2\'e2\'ce\'b6\'d7\'c5\'b5\'f7\'d3\'c3\'cd\'ea\'ba\'af\'ca\'fd\'ba\'f3\'a3\'ac\'cd\'e2\'b2\'bf\'b5\'c4 event \'b1\'e4\'c1\'bf\'bf\'c9\'d2\'d4\'b1\'bb\'d0\'de\'b8\'c4\'bb\'f2\'d6\'d8\'d3\'c3\'a3\'ac\'b2\'bb\'bb\'e1\'d3\'b0\'cf\'ec\'c4\'da\'ba\'cb\'c0\'ef\'d2\'d1\'be\'ad\'b4\'e6\'ba\'c3\'b5\'c4\'c4\'c7\'b7\'dd)\'a1\'a3\
+\
+\'c8\'fd\'a1\'a2\'b5\'d7\'b2\'e3\'d4\'ad\'c0\'ed (\'c3\'e6\'ca\'d4\'bc\'d3\'b7\'d6\'cf\'ee)\
+\'b5\'b1\'b5\'f7\'d3\'c3 EPOLL_CTL_ADD \'ca\'b1\'a3\'acLinux \'c4\'da\'ba\'cb\'d4\'da\'b5\'d7\'cf\'c2\'d7\'f6\'c1\'cb\'ca\'b2\'c3\'b4\'a3\'bf\
+- \'ca\'fd\'be\'dd\'bd\'e1\'b9\'b9\'a3\'ba\'ba\'ec\'ba\'da\'ca\'f7 (Red-Black Tree)\'a1\'a3\
+- \'b6\'af\'d7\'f7\'a3\'ba\'b0\'d1\'c4\'e3\'b5\'c4 fd \'d7\'f7\'ce\'aa\'d2\'bb\'b8\'f6\'bd\'da\'b5\'e3\'a3\'ac\'b2\'e5\'c8\'eb\'b5\'bd\'c4\'da\'ba\'cb\'ce\'ac\'bb\'a4\'b5\'c4\'ba\'ec\'ba\'da\'ca\'f7\'d6\'d0\'a1\'a3\
+- \'d3\'c5\'ca\'c6\'a3\'ba\'d0\'a7\'c2\'ca\'bc\'ab\'b8\'df (O(logN))\'a1\'a3\
+  \'c4\'c4\'c5\'c2\'bc\'e0\'bf\'d8\'c1\'cb 10 \'cd\'f2\'b8\'f6\'c1\'ac\'bd\'d3\'a3\'ac\'cf\'eb\'d2\'aa\'d4\'f6\'bc\'d3\'a1\'a2\'b2\'e9\'d5\'d2\'bb\'f2\'c9\'be\'b3\'fd\'d2\'bb\'b8\'f6 fd\'a3\'ac\'cb\'d9\'b6\'c8\'b6\'bc\'b7\'c7\'b3\'a3\'bf\'ec\'a3\'ac\'b2\'bb\'bb\'e1\'cb\'e6\'c1\'ac\'bd\'d3\'ca\'fd\'d4\'f6\'bc\'d3\'b6\'f8\'cf\'d4\'d6\'f8\'b1\'e4\'c2\'fd\'a1\'a3\
+\
+\'c8\'cb\'bb\'b0\'a3\'ba\'a1\'b0\'ce\'b9\'a3\'ac\'b9\'dc\'bc\'d2(epfd)\'a3\'ac\'b8\'f8\'ce\'d2\'cc\'ed\'bc\'d3(ADD)\'d2\'bb\'b8\'f6\'bc\'e0\'bf\'d8\'b6\'d4\'cf\'f3(listenfd)\'a3\'ac\'be\'df\'cc\'e5\'b5\'c4\'bc\'e0\'bf\'d8\'d2\'aa\'c7\'f3\'ce\'d2\'b6\'bc\'d0\'b4\'d4\'da\'d5\'e2\'b8\'f6\'b1\'e3\'c7\'a9(&event)\'c9\'cf\'c1\'cb\'a3\'ac\'d5\'d5\'d7\'c5\'d7\'f6\'a3\'a1\'a1\'b1\cf8 \strokec8 \
+}
