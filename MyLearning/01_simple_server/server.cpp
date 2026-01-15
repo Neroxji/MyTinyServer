@@ -63,49 +63,49 @@ int main(){
     printf("服务器启动成功！正在监听 9006 端口...\n");
 
     while(true){
-      // 4. 接受连接 (接电话)
-      struct sockaddr_in client_address;
-      socklen_t client_addrlength=sizeof(client_address);
+        // 4. 接受连接 (接电话)
+        struct sockaddr_in client_address;
+        socklen_t client_addrlength=sizeof(client_address);
 
-      // accept 是一个阻塞函数，程序会停在这里等，直到有人连上来
-      int connfd=accept(listenfd,(struct sockaddr*)&client_address,&client_addrlength);
-      if(connfd<0){
-        perror("accept error");
-      }else{
-        // 成功连上！
-        char remoteAddr[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET,&client_address.sin_addr,remoteAddr,INET_ADDRSTRLEN);
-        printf("有人连上来了!IP是: %s\n", remoteAddr);
-
-        // ==========================================
-        // 🔥 TODO: 新增接收逻辑 (recv) 开始 🔥
-        // ==========================================
-        // 准备一个空碗 (数组)，清零
-        char buf[1024];
-        memset(buf,0,sizeof(buf));
-
-        // 开始接收 (recv)
-        ssize_t len=recv(connfd,buf,sizeof(buf)-1,0);//最多读 1023 个字节 (留一个位置给结束符)
-
-        if(len>0){
-          printf("收到客户端发来的消息 [%ld bytes]:\n%s\n", len, buf);//%ld:对应long(Long Decimal)。
-          //如果你定义 ssize_t len -> 打印用 %ld。如果你定义 int len -> 打印用 %d。
-        }else if(len==0){
-          printf("客户端断开了连接。\n");
+        // accept 是一个阻塞函数，程序会停在这里等，直到有人连上来
+        int connfd=accept(listenfd,(struct sockaddr*)&client_address,&client_addrlength);
+        if(connfd<0){
+            perror("accept error");
         }else{
-          perror("recv 失败");
+            // 成功连上！
+            char remoteAddr[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET,&client_address.sin_addr,remoteAddr,INET_ADDRSTRLEN);
+            printf("有人连上来了!IP是: %s\n", remoteAddr);
+
+            // ==========================================
+            // 🔥 TODO: 新增接收逻辑 (recv) 开始 🔥
+            // ==========================================
+            // 准备一个空碗 (数组)，清零
+            char buf[1024];
+            memset(buf,0,sizeof(buf));
+
+            // 开始接收 (recv)
+            ssize_t len=recv(connfd,buf,sizeof(buf)-1,0);//最多读 1023 个字节 (留一个位置给结束符)
+
+            if(len>0){
+                printf("收到客户端发来的消息 [%ld bytes]:\n%s\n", len, buf);//%ld:对应long(Long Decimal)。
+                //如果你定义 ssize_t len -> 打印用 %ld。如果你定义 int len -> 打印用 %d。
+            }else if(len==0){
+                printf("客户端断开了连接。\n");
+            }else{
+                perror("recv 失败");
+            }
+
+            // 格式：HTTP版本 状态码 \r\n 头部信息 \r\n \r\n 正文        
+            char response[]=
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n"
+                "\r\n"
+                "Hello from c++ Server!";
+            send(connfd,response,strlen(response),0);
+
+            close(connfd);// 挂断电话
         }
-
-        // 格式：HTTP版本 状态码 \r\n 头部信息 \r\n \r\n 正文        
-        char response[]=
-          "HTTP/1.1 200 OK\r\n"
-          "Content-Type: text/plain\r\n"
-          "\r\n"
-          "Hello from c++ Server!";
-        send(connfd,response,strlen(response),0);
-
-        close(connfd);// 挂断电话
-      }
     }
 
     //close(listenfd);// 关机

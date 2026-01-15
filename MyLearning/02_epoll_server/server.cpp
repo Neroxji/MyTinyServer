@@ -47,6 +47,7 @@ int main(){
     printf("服务器启动成功！正在监听 9006 端口...\n");
 
 
+
 // ===============================================================
 
     // ==========================================
@@ -63,11 +64,11 @@ int main(){
     // ==========================================
     // 🪓 Epoll 第二板斧：给管家派活 (Ctl - Add)
     // ==========================================
-    // 咱们要把 listenfd (门卫) 交给管家盯着，看有没有人来连接
+    // 要把 listenfd 交给管家盯着，看有没有人来连接
     struct epoll_event event;
     event.data.fd=listenfd;// 记录：这是 listenfd 的事
     event.events=EPOLLIN;
-    // 也可以写成 event.events = EPOLLIN | EPOLLET; (如果要用 ET 模式，但咱们先用默认的 LT)
+    // 也可以写成 event.events = EPOLLIN | EPOLLET; (如果要用 ET 模式//先用默认的 LT)
 
     // 把便签条贴到管家身上 (往内核事件表里添加)
     ret=epoll_ctl(epollfd,EPOLL_CTL_ADD,listenfd,&event);
@@ -81,49 +82,101 @@ int main(){
     // 准备一个篮子，用来接管家扔出来的事件
     struct epoll_event events[1024];
 
-
 // ===============================================================
 
+    // ==========================================
+    // 🪓 Epoll 第三板斧：坐等通知 (Wait)
+    // ==========================================
     while(true){
-      // 4. 接受连接 (接电话)
-      struct sockaddr_in client_address;
-      socklen_t client_addrlength=sizeof(client_address);
+    // 1. 让管家开始工作，阻塞等待事件发生
+    // epollfd: 管家ID
+    // events:  管家拿来装“便签”的篮子 (数组)
+    // 1024:    篮子最大能装多少
+    // -1:      超时时间 (-1 表示死等，直到有事发生；0 表示不等待；>0 表示毫秒)
+    // 返回值 number: 也就是“实际上发生了几件事”
+    int number=epoll_wait(epollfd,events,1024,-1);
 
-      // accept 是一个阻塞函数，程序会停在这里等，直到有人连上来
-      int connfd=accept(listenfd,(struct sockaddr*)&client_address,&client_addrlength);
-      if(connfd<0){
-        perror("accept error");
-      }else{
-        // 成功连上！
-        char remoteAddr[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET,&client_address.sin_addr,remoteAddr,INET_ADDRSTRLEN);
-        printf("有人连上来了!IP是: %s\n", remoteAddr);
+    if(number<0){
+        perror("epoll_wait failure");
+        break;
+    }
 
-        // 准备一个空碗 (数组)，清零
-        char buf[1024];
-        memset(buf,0,sizeof(buf));
+    for(int i=0;i<number;i++){
 
-        // 开始接收 (recv)
-        ssize_t len=recv(connfd,buf,sizeof(buf)-1,0);//最多读 1023 个字节 (留一个位置给结束符)
+        // 提取出是哪个 fd 发生了事件
+        // 这里的 events[i].data.fd 就是当初存进去的那个 listenfd
+        int sockfd=events[i].data.fd;
 
-        if(len>0){
-          printf("收到客户端发来的消息 [%ld bytes]:\n%s\n", len, buf);//%ld:对应long(Long Decimal)。
-          //如果你定义 ssize_t len -> 打印用 %ld。如果你定义 int len -> 打印用 %d。
-        }else if(len==0){
-          printf("客户端断开了连接。\n");
-        }else{
-          perror("recv 失败");
+        // 情况一：前台大门响了 (新用户连接)
+        if(sockfd==listenfd){
+            struct sockaddr_in client_address;
+            socklen_t client_addrlength=sizeof(client_address);
+
+            // 此时调用 accept 绝对不会阻塞，因为 Epoll 告诉你肯定有连接
+            int connfd=accept(listenfd,(struct sockaddr*)&client_address,&client_addrlength);
+
+            if(connfd<0){
+                perror("accept error");
+                continue;//因为在for循环里面
+            }
+
+            // 打印一下新客人的信息
+            char remoteAddr[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET,&client_address.sin_addr,remoteAddr,INET_ADDRSTRLEN);
+            printf("1.1 新的连接! FD: %d, IP: %s\n",connfd,remoteAddr);
+
+            // ⚠️【关键一步】：把新进来的客人 (connfd) 也交给 Epoll 管家管理！
+            // 如果不加这一步，管家就不认识这个客人，以后他说话你也听不到
+            struct epoll_event event;
+            event.data.fd=connfd;
+            event.events=EPOLLIN;// 关心“读”事件 (他发数据)
+
+            epoll_ctl(epollfd,EPOLL_CTL_ADD,connfd,&event);
+            printf("1.2 已将 fd %d 加入 Epoll 监控\n", connfd);
         }
 
-        // 格式：HTTP版本 状态码 \r\n 头部信息 \r\n \r\n 正文        
-        char response[]=
-          "HTTP/1.1 200 OK\r\n"
-          "Content-Type: text/plain\r\n"
-          "\r\n"
-          "Hello from c++ Server!";
-        send(connfd,response,strlen(response),0);
+        // 情况二：客房电话响了 (老用户发数据)
+        else if(events[i].events&EPOLLIN){
+            char buf[1024]={0};
 
-        close(connfd);// 挂断电话
+            // 读取数据
+            ssize_t len=recv(sockfd,buf,sizeof(buf)-1,0);
+
+            if(len>0){
+                printf("2.1 收到来自 fd %d 的消息: %s\n", sockfd, buf);
+
+                // 回复一个消息 (原来的逻辑)
+                char response[]=
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "Connection: close\r\n"
+                    "\r\n"
+                    "Hello from Epoll Server!";
+                send(sockfd,response,strlen(response),0);
+
+                // 发送完直接移除并关闭
+                epoll_ctl(epollfd,EPOLL_CTL_DEL,sockfd,NULL);
+                close(sockfd); // 挂断电话
+                printf("2.2 -> 响应已发送，主动关闭连接 fd %d\n", sockfd);
+            }
+
+            else if(len==0){
+                // 客户端断开了连接
+                printf("客户端 fd %d 断开了连接\n", sockfd);
+
+                // 1. 从 Epoll 名单里删除 (让管家别盯着了)
+                epoll_ctl(epollfd,EPOLL_CTL_DEL,sockfd,NULL);
+                // 2. 真正的关闭连接
+                close(sockfd); 
+            }
+
+            else{
+                perror("recv error");
+                epoll_ctl(epollfd, EPOLL_CTL_DEL, sockfd, NULL);
+                close(sockfd);// 出错也关掉
+            }
+            
+        }
       }
     }
     
