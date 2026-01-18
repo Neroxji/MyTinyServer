@@ -22,18 +22,18 @@
 
 // 1：主状态机 (当前正在分析哪一部分？)
 enum CHECK_STATE{
-    CHECK_STATE_REQUESTLINE=0,  // 正在分析请求行 (第一行: GET /index.html ...)
-    CHECK_STATE_HEADER,         // 正在分析头部字段 (Host: localhost ...)
-    CHECK_STATE_CONTENT         // 正在分析包体 (Post 请求才有，比如登录密码)
+    CHECK_STATE_REQUESTLINE=0,  // 正在分析请求行 (第一行: GET /index.html ...)     0
+    CHECK_STATE_HEADER,         // 正在分析头部字段 (Host: localhost ...)           1
+    CHECK_STATE_CONTENT         // 正在分析包体 (Post 请求才有，比如登录密码)           2
 };
 
 
 // 2：从状态机 (刚才切出来的那一行是啥情况？)
 enum LINE_STATUS{
-    LINE_OK=0,      // 完整读取了一行 (切菜成功！)
-    LINE_BAD,       // 这一行语法错误 (比如只有 \r 没有 \n)
-    LINE_OPEN       // 行数据不完整 (菜还没买齐，下次继续读)
-};
+    LINE_OK=0,      // 完整读取了一行 (切菜成功！)              0
+    LINE_BAD,       // 这一行语法错误 (比如只有 \r 没有 \n)      1
+    LINE_OPEN       // 行数据不完整 (菜还没买齐，下次继续读)       2
+};  
 
 
 // 3：HTTP 请求处理结果 (最终要给客户回什么？)
@@ -103,16 +103,18 @@ private:
     char* get_line(){return m_read_buf+m_start_line;}
 
     // 这一组函数被 process_write 调用以填充 HTTP 应答
-    void unmap();
     void add_response(const char* format,...);
-    bool add_content(const char* content);
+
     bool add_status_line(int status,const char* title);
     bool add_headers(int content_length);
-    bool add_content_type();
     bool add_content_length(int content_length);
+    bool add_content_type();
     bool add_linger();
     bool add_blank_line();
 
+    bool add_content(const char* content);
+
+    void unmap();
 
 private:
     // 📡 网络相关
