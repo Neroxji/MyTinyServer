@@ -48,6 +48,19 @@ enum HTTP_CODE{
     CLOSED_CONNECTION   // 客户端关闭连接
 };
 
+// 4：HTTP 请求方法 (GET, POST...)
+enum METHOD {
+    GET = 0, 
+    POST, 
+    HEAD, 
+    PUT, 
+    DELETE, 
+    TRACE, 
+    OPTIONS, 
+    CONNECT, 
+    PATCH
+};
+
 
 class http_conn{
 public:
@@ -59,6 +72,9 @@ public:
     // 📏 定义读写缓冲区的大小
     static const int READ_BUFFER_SIZE=2048;  // 读缓冲区大小
     static const int WRITE_BUFFER_SIZE=1024; // 写缓冲区大小
+
+    // 📏 定义文件大小
+    static const int FILENAME_LEN=200;
 
 public:
     http_conn(){}
@@ -143,6 +159,9 @@ private:
     char* m_host;           // 主机名
     int m_content_length;   // HTTP 请求的消息体长度
     bool m_linger;          // HTTP 请求是否要求保持连接 (Keep-Alive)
+
+    // 请求方法 (GET, POST 等)
+    METHOD m_method;
 
     char* m_file_address;   // 客户请求的目标文件被 mmap 到内存中的起始位置
     struct stat m_file_stat;// 目标文件的状态 (判断文件是否存在、是否可读)

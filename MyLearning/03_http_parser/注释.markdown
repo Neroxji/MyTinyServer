@@ -1,3 +1,4 @@
+`http_coon.h`
 `🪓 HTTP 解析的“三板斧”`
 
 ### 第一板斧：切菜刀 (parse_line)
@@ -21,7 +22,7 @@
 
 
 
-markdown:
+markdown格式:
 变蓝/变大 (标题)：在“第一板斧”前面加 #
 ### 第一板斧：切菜刀
 
@@ -33,3 +34,32 @@ markdown:
 
 变绿/变引用 (引用说明)：在行首加 >
 > 潜台词：“这一行读完了，截断！”
+
+
+
+
+`http_conn.cpp`
+1、🧱 基础设施篇 (Infrastructure)
+内容：头文件引用、静态变量初始化、Epoll 的辅助函数（设置非阻塞、注册事件、删除事件）。
+难度：⭐⭐
+作用：这是给 Epoll 打下手的工具箱。
+
+2、🚪 连接管理篇 (Connection Mgmt)
+内容：init (初始化)、close_conn (关闭连接)。
+难度：⭐⭐
+作用：负责“迎来送往”，可以编译通过但还没法说话。
+
+3、👂👄 IO 读写篇 (Input/Output)
+内容：read_once (读)、write (写)。
+难度：⭐⭐⭐
+作用：真正和 TCP 缓冲区打交道的地方。
+
+4、🧠 逻辑解析篇 (Logic Parser)
+内容：process_read (主状态机)、parse_xxx (各种解析)。
+难度：⭐⭐⭐⭐⭐ (最核心、最复杂)
+作用：把乱码变成 HTTP 请求对象。
+
+5、📦 响应生成篇 (Response Builder)
+内容：process_write (总控)、add_xxx (拼凑报文)。
+难度：⭐⭐⭐⭐
+作用：把结果打包发回去。
