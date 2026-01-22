@@ -1,0 +1,208 @@
+socket编程入门
+Ps：不一定按照一整套流程来的，只是解释而已🤓
+
+//2. 绑定端口 (插上电话卡)
+struct sockaddr_in {
+    short            sin_family;   // 协议族 (地址类型)
+    unsigned short   sin_port;     // 端口号 (16位)
+    struct in_addr   sin_addr;     // IP地址 (32位)
+    char             sin_zero[8];  // 填充用的废料 (为了凑够长度)
+};
+
+bzero 是啥功能？
+全称是 Berkeley Zero（伯克利归零）。
+它的作用是：将一段内存里的所有数据都设置为 0。
+参数 1：&address -> 从哪里开始擦？（从 address 的起始地址开始）。
+参数 2：sizeof(address) -> 擦多大面积？（擦整个结构体那么大）。
+为什么要擦？
+C 语言里，当你定义一个局部变量 struct ... 时，如果不初始化，这块内存里可能残留着之前程序留下的“垃圾数据”（乱码）。
+如果不清零，系统可能会读到错误的配置，导致奇奇怪怪的 Bug。
+现代写法：现在的 C++ 代码里，大家更习惯用 memset(&address, 0, sizeof(address));，功能完全一样，但 memset 是标准库函数，兼容性更好。不过在网络编程里，bzero 依然非常常见（因为写起来少个参数，偷懒专用）。
+
+address.sin_addr.s_addr：
+这是去访问结构体里最深层的那个存 IP 的整数变量。
+
+NADDR_ANY：
+	•	它其实就是数字 0 (0.0.0.0)。
+	•	含义：表示**“任何地址”**。
+	•	为什么要用它？
+	◦	你的电脑可能有两个 IP：一个是 Wi-Fi 的 192.168.1.5，一个是网线的 10.0.0.2，还有一个回环地址 127.0.0.1。
+	◦	如果你填了 INADDR_ANY，意思是：不管别人是通过 Wi-Fi 连我，还是通过网线连我，我全都接待！
+	◦	如果你只填 127.0.0.1，那只有你自己的电脑能连上，局域网里的其他人都连不上你。
+
+address.sin_port = htons(9006);
+htons(9006)：
+Host to Network Short (因为端口号是 short 类型，16位，比较短，所以用 s 结尾，不用 l)。
+同样是为了防止大小端问题，把 9006 这个数字转换成网络通用的标准格式。
+把函数名拆成三部分看：h - to - n - X
+	•	h: Host (主机字节序，你的电脑)
+	•	to: 转成
+	•	n: Network (网络字节序，互联网通用标准)
+	•	X (后缀)：决定了转多大的数据！
+	◦	l (Long)：32位长整数。
+	◦	s (Short)：16位短整数。
+	◦	
+	·	ps：IP 地址：在 IPv4 里是 32 位的整数，所以用 htonl (Long)。
+	·	       端口号：范围是 0-65535，刚好是 16 位的整数，所以用 htons (Short)。
+
+
+// 为了防止“端口被占用”报错 
+setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+1.listenfd (目标)
+	•	含义：你的 Socket 文件描述符（手机句柄）。
+	•	作用：指定要修改哪一部“手机”的配置。
+2. SOL_SOCKET (层级)
+	•	全称：Socket Level
+	•	含义：Socket 层级的通用配置。
+	•	比喻：调节手机的“通用设置”（如屏幕亮度），而不是某个 App 的特有设置。
+3. SO_REUSEADDR (选项 - 🌟核心)
+	•	全称：Reuse Address
+	•	作用：允许重用处于 TIME_WAIT 状态的端口。
+	•	场景：服务器异常关闭或重启时，端口会被系统锁定 2~4 分钟。开启此选项可跳过冷静期，立即重启成功。
+	•	潜台词：“我是管理员，别管 TCP 规则，把端口立刻给我用！”
+4. &reuse (值指针)
+	•	含义：指向配置值（1 表示开启，0 表示关闭）的指针。
+	•	注意：函数设计为通用接口（接收 void*），所以必须传变量的地址，不能直接传值。
+5. sizeof(reuse) (长度)
+	•	含义：告诉内核读取多少字节的数据（通常 int 为 4 字节）。
+	•	作用：防止内存读写越界。
+
+// 3. 监听 (等待电话响)
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+(1) 参数一：listenfd (或者叫 sockfd) 
+	- 含义：Socket 文件描述符。
+ 	- 理解：这是第一步 socket() 购买到的“手机”的 ID。
+	- 作用：告诉系统，“我要给这部特定的手机办理套餐（绑定地址）”。 
+
+(2) 参数二：(struct sockaddr*)&address 
+	- 含义：指向地址结构体的指针，并强制转换为通用类型。 
+	- 动作分解：
+ 		a. &address (取地址)： 把刚才填好的 sockaddr_in (IPv4专用) 结构体的内存地址传进去。 潜台词：“填好的单子在这里，系统请照着读。”
+ 		b. (struct sockaddr*) (强制类型转换)： bind 函数是老古董，只认通用的 struct sockaddr 类型。 比喻：把“顺丰专用快递单”（sockaddr_in）折叠一下，伪装成“通用快递面单”（sockaddr）递给函数，告诉它“别管具体格式，拿去用就行”。
+
+ (3) 参数三：sizeof(address) 
+	- 含义：地址结构体的大小（字节数）。
+	- 作用：C 语言指针不包含长度信息。 - 潜台词：“这张单子占这么大内存，读到这里就停，防止读多了（内存越界）或读少了（信息不全）。”
+
+
+// 4. 接受连接 (接电话)
+struct sockaddr_in client_address;
+socklen_t client_addrlength=sizeof(client_address);
+
+//连着上面的来⬆️accept 是一个阻塞函数，程序会停在这里等，直到有人连上来
+int connfd=accept(listenfd,(struct sockaddr*)&client_address,&client_addrlength);
+accept (现在的场景)
+	•	方向：你<->内核 (双向)
+	•	动作：
+	1	去 (Input)：你告诉内核：“我准备了一个空结构体 client_address 来装客户信息，它最大能容纳 16 字节。”（防止内核写越界）。
+	2	回 (Output)：内核填完信息后，会划掉你原来的数字，修改这个变量告诉你是：“我实际往里面写了 16 字节的数据。”
+	•	关键点：因为内核要修改这个变量的值，所以在 C 语言里，必须传变量的地址 (指针)。如果你只传一个数字进去，内核就无法把修改后的结果带回来给你。（内核会返回结果，所以要引用）
+Ps：因为 accept 是一个通用函数，它不仅支持 IPv4，还支持 IPv6、Unix 域套接字等。
+	•	IPv4 地址结构体大小是 16 字节。
+	•	IPv6 地址结构体大小是 28 字节。
+
+
+// 成功连上！
+char remoteAddr[INET_ADDRSTRLEN];
+inet_ntop(AF_INET,  &client_address.sin_addr,  remoteAddr,  INET_ADDRSTRLEN);
+inet Network TO Presentation（网络 到 显示）。（翻译官）
+1. 参数一：AF_INET
+   - 含义：地址族 (Address Family)。
+   - 作用：确定“翻译模式”。
+   - 潜台词：“我要翻译的是 IPv4 的地址，不是 IPv6 的。”
+   - 备注：如果是 IPv6，这里要填 AF_INET6。
+
+2. 参数二：&client_address.sin_addr
+   - 含义：源数据 (Source)。
+   - 作用：指向那个刚才 accept 填好的、只有机器看得懂的二进制 IP 结构体。
+   - 潜台词：“这是原文，拿去翻译。”
+   - 关键点：
+     1. 必须加 '&' (取地址)。
+     2. 必须精确指向 '.sin_addr' (存 IP 的核心字段)，而不是整个结构体。
+
+3. 参数三：remoteAddr
+   - 含义：目标容器 (Destination)。
+   - 作用：用来存放翻译结果的字符数组。
+   - 潜台词：“翻译好的结果（字符串）请写到这张纸上。”
+
+4. 参数四：INET_ADDRSTRLEN
+   - 含义：容器大小 (Size)。通常为 16。
+   - 作用：防止缓冲区溢出 (Buffer Overflow)。
+   - 原理：如果翻译结果太长超过这个数，函数报错，保护内存不被撑爆。
+
+
+// 给浏览器发个简单的回应
+char buffer[]="Hello from c++ Server!";
+send(connfd,  buffer,  strlen(buffer),  0);
+
+1. send 函数原型
+   ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+
+2. 参数详解 (以 send(connfd, buffer, strlen(buffer), 0) 为例)
+   (1) 参数一：connfd (接收方 ID)
+       - 必须是 accept 返回的那个 connfd (专属分机)。
+       - ❌ 严禁填 listenfd，否则报错！
+       - 潜台词：“我要给刚才连上来的这个人发消息。”
+   (2) 参数二：buffer (内容)
+       - 数据存放的地址。
+       - 潜台词：“这就是我要发的内容。”
+   (3) 参数三：strlen(buffer) (长度)
+       - 告诉内核发多少字节。
+       - 潜台词：“念完这几个字就停。”
+       - 注意：发送字符串通常不发结尾的 '\0'。
+   (4) 参数四：0 (标志)
+       - 默认行为。
+       - 潜台词：“正常发送。”
+
+3. send vs recv 核心区别
+   ★ 方向不同
+      - send: 应用层 -> 你的网卡 (出去)
+      - recv: 你的网卡 -> 应用层 (进来)
+   ★ Buffer 角色不同
+      - send 的 buffer: 是【满】的，里面装着你要发的数据。
+      - recv 的 buffer: 是【空】的，等着装对方发来的数据。
+   ★ 长度参数不同
+      - send: 填【实际数据长度】(我有多少发多少)。
+      - recv: 填【容器最大容量】(防止装不下溢出)。
+
+4. close(connfd)
+   - 作用：释放这个连接占用的资源。
+   - 对应：TCP 的四次挥手断开连接。
+
+
+/*手撕代码的程度
+int main() {
+    // 1. Socket
+    int listenfd = socket(AF_INET, SOCK_STREAM, 0);
+    // 错误处理意思一下就行，不用写太细
+    if(listenfd == -1) return -1; 
+
+    // 2. Bind (这一块是重点)
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(9006);       // 重点：htons 必须写！
+    addr.sin_addr.s_addr = INADDR_ANY; // 重点：允许任意IP
+
+    // 重点：强转 (struct sockaddr*) 不能丢
+    bind(listenfd, (struct sockaddr*)&addr, sizeof(addr));
+
+    // 3. Listen
+    listen(listenfd, 5); // 这里的 5 稍微解释下是 backlog 就满分
+
+    while(1) {
+        // 4. Accept
+        struct sockaddr_in client_addr;
+        int len = sizeof(client_addr); // 用 int 代替 socklen_t 没问题
+        
+        // 重点：这里也要强转
+        int connfd = accept(listenfd, (struct sockaddr*)&client_addr, &len);
+        
+        if (connfd > 0) {
+            // 5. 业务逻辑
+            // 简单写一下 handle(connfd) 或者 send/recv 证明你知道后面该干啥
+            char buf[1024];
+            read(connfd, buf, sizeof(buf)); 
+            close(connfd);
+        }
+    }
+}*/

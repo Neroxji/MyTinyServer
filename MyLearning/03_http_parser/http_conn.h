@@ -166,9 +166,11 @@ private:
     char* m_file_address;   // 客户请求的目标文件被 mmap 到内存中的起始位置
     struct stat m_file_stat;// 目标文件的状态 (判断文件是否存在、是否可读)
 
-    // WriteV 相关 (这是高级发送技术，后面再说)
-    // struct iovec m_iv[2];
-    // int m_iv_count;
+    // WriteV 相关 
+    struct iovec m_iv[2]; // io vector: 两个盘子（头 + 体）
+    int m_iv_count;       // 这一次发送我们要用几个盘子？(1个还是2个)
+    int bytes_to_send;    // 还有多少字节没发完？
+    int bytes_have_send;  // 已经发了多少字节？
 };
 
 #endif
