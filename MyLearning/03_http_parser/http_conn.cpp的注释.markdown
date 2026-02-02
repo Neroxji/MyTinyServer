@@ -75,3 +75,97 @@ EPOLLONESHOT 是一次性的。
 
 
 
+	｜Errno 错误处理机制｜
+errno 是个啥？
+它是一个全局变量（在 <errno.h> 头文件里定义）。 每当 Linux 的系统函数（比如 recv、send、open、write）执行失败（通常是返回 -1）时，操作系统会自动在这个变量里写下一个数字。
+这个数字就是错误代码，用来告诉你“刚才到底哪里出错了”。
+
+recv 返回值与 errno 详解
+recv 返回 -1 时，并不总是代表“出错了”，需要检查全局变量 errno。
+A. 假错 (正常结束)
+* errno == EAGAIN (或 EWOULDBLOCK)
+* 含义: "Resource temporarily unavailable"。
+* 解读: 非阻塞模式下，这意味着 TCP 缓冲区已经空了，没有数据可读了。
+* 动作: break 退出循环 (读取任务圆满完成)。
+
+B. 打断 (需要重试)
+* errno == EINTR
+* 含义: "Interrupted system call"。
+* 解读: 读取过程被系统信号打断。
+* 动作: 视情况而定，通常选择 continue (再试一次)。
+
+C. 真错 (连接故障)
+* errno == ECONNRESET (对方强行复位/崩溃)
+* errno == EPIPE (向已关闭的连接写入)
+* recv 返回值 == 0 (对方正常 close 关闭连接)
+* 动作: return false (通知上层逻辑关闭连接)。
+
+
+
+	｜writev高级转发技术｜
+iovec 结构体详解 
+struct iovec { 
+void *iov_base; // 内存块的起始地址 
+size_t iov_len; // 内存块的长度
+ };
+三个参数:
+1. fd: 目标文件描述符 (即客户端的 socket)。
+2. iov: 一个 iovec 结构体数组的指针 (发货清单)。
+3. iovcnt: 数组中有几个元素 (清单上有几项货物)。
+
+struct iovec m_iv[2];
+* m_iv[0]: 存放 HTTP 响应头部 (Status Line + Headers)。数据在 m_write_buf 中。
+* m_iv[1]: 存放 HTTP 响应体 (Body)。数据在 m_file_address (mmap 映射的文件内存) 中。
+
+writev 方式 (高性能):
+零拷贝 (Zero Copy) 思想。
+不需要拼接，直接告诉内核两块数据的位置，内核会自动把它们拼成一个 TCP 流发出去。
+效率极高，特别适合 Web Server 这种 "小头 + 大体" 的数据结构。
+
+
+两个基准地址：
+在 writev 发送过程中，数据并不是存在一块连续内存里的，而是分成了“两块地”：
+* 仓库 A (HTTP 头部):
+  - 变量: m_write_buf
+  - 来源: 用户空间定义的数组 (Stack/Heap)。
+  - 内容: 状态行 + 头部字段 (如 Content-Length)。
+  - 长度: m_write_idx
+
+* 仓库 B (HTTP 文件体):
+  - 变量: m_file_address
+  - 来源: mmap 映射的内核/磁盘缓冲区。
+  - 内容: 网页文件 (如 index.html, image.jpg)。
+  - 特点: 与仓库 A 在物理内存上不连续，相隔很远。
+
+因此，计算偏移量时，必须根据当前发送的进度，分别以 m_write_buf 或 m_file_address 为起跑线 (Base)。
+
+
+ 场景分析：断点续传的两种情况
+变量定义:
+* bytes_have_send: 累计已发送的总字节数 (包含 头+体)。
+* m_write_idx: 头部的固定长度。
+
+情况 A：头部还没发完
+判断条件: bytes_have_send < m_write_idx
+逻辑:
+1. 既然头部没发完，说明目前的进度全都在“仓库 A”里。
+2. 我们不需要关心仓库 B，只需要在仓库 A 里移动指针。
+公式:
+m_iv[0].iov_base = m_write_buf + bytes_have_send;
+m_iv[0].iov_len  = m_write_idx - bytes_have_send;
+
+情况 B：头部已发完，正在发文件
+判断条件: bytes_have_send >= m_write_idx
+逻辑:
+1. 头部已经全部发出去了，m_iv[0] 的任务结束 (长度设为 0)。
+2. 现在的进度主要在“仓库 B”里。
+3. 要计算在仓库 B 里走了多远，必须从“总进度”里扣除掉“头部的长度”。
+公式:
+// 算出在文件内的相对偏移量
+int file_offset = bytes_have_send - m_write_idx;
+
+// 新起点 = 文件基地址 + 相对偏移量
+m_iv[1].iov_base = m_file_address + file_offset;
+
+// 剩余长度 = 还需要发送的总字节数
+m_iv[1].iov_len  = bytes_to_send;
