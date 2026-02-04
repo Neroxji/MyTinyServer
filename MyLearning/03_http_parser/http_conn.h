@@ -31,9 +31,9 @@ enum CHECK_STATE{
 
 // 2：从状态机 (刚才切出来的那一行是啥情况？)
 enum LINE_STATUS{
-    LINE_OK=0,      // 完整读取了一行 (切菜成功！)              0
+    LINE_OK=0,      // 完整读取了一行 (成功！)              0
     LINE_BAD,       // 这一行语法错误 (比如只有 \r 没有 \n)      1
-    LINE_OPEN       // 行数据不完整 (菜还没买齐，下次继续读)       2
+    LINE_OPEN       // 行数据不完整 (没齐，下次继续读)       2
 };  
 
 
@@ -112,8 +112,9 @@ private:
 
     // 下面这一组函数被 process_read 调用以分析 HTTP 请求
     HTTP_CODE parse_request_line(char *text);   // 分析第一行
-    HTTP_CODE parse_headers(char *text);        // 分析第一行
-    HTTP_CODE parse_content(char *text);        // 分析内容
+    HTTP_CODE parse_headers(char *text);        // 分析头部
+    HTTP_CODE parse_content(char *text);        // 分析内容 eg:post
+    HTTP_CODE do_request();                     // 生成响应
     LINE_STATUS parse_line();                   // ✨切菜刀：获取一行
 
     // 辅助函数：获取当前行在 buffer 中的起始地址
@@ -142,8 +143,8 @@ private:
     char m_read_buf[READ_BUFFER_SIZE];
 
     // 📍 这里的三个变量至关重要！(解析时的游标)
-    int m_read_idx;     // 标识读缓冲区中已经读入的客户数据的最后一个字节的下一个位置
-    int m_checked_idx;  // 当前正在分析的字符在读缓冲区中的位置
+    int m_read_idx;     // 标识读缓冲区中 已经读入的客户数据 的 最后一个字节 的下一个位置
+    int m_checked_idx;  // 当前正在分析的字符在 读缓冲区 中的位置
     int m_start_line;   // 当前正在解析的行的起始位置
 
     // 🏷️ 状态机相关

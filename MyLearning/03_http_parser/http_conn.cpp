@@ -255,3 +255,329 @@ bool http_conn::write(){
         }
     }
 }
+
+// =================================================================
+// 5. 业务逻辑入口 (由线程池调用)
+// =================================================================
+
+// ⚙️ 处理 HTTP 请求的入口函数
+void http_conn::process(){
+
+    // 1. 【读解析】分析 HTTP 请求
+    // process_read 是接下来要写的核心大函数
+    // 它会返回一个“状态码”，告诉我们请求分析得怎么样了
+    HTTP_CODE read_ret=process_read();
+
+    // 🛑 情况 A: 请求不完整 (NO_REQUEST)
+    // 比如客户只发了 "GET /ind"，还没发完。
+    // 这时候不能急着处理，得继续监听“读事件”，等客户把剩下的发过来。
+    if(read_ret==NO_REQUEST){
+        modfd(m_epollfd,m_sockfd,EPOLLIN);
+        return;
+    }
+
+    // 2. 【写准备】生成 HTTP 响应
+    // 比如根据 read_ret 生成 "200 OK" 或者 "404 Not Found"
+    bool write_ret=process_write(read_ret);
+
+    // 🛑 情况 B: 响应生成失败
+    if(!write_ret){
+        close_conn(); // 既然没法回复，就关掉连接
+    }
+
+    // ✅ 情况 C: 响应准备好了
+    // 告诉 Epoll：“我这边数据准备好了，一旦网卡空闲，就提醒我发送 (EPOLLOUT)”
+    // 只要 Epoll 触发 EPOLLOUT，主线程就会去调用我们之前写的 write() 函数
+    modfd(m_epollfd,m_sockfd,EPOLLOUT);
+}
+
+// =================================================================
+// 6. HTTP 请求解析 (主状态机)  4个函数！！！
+// =================================================================
+
+// 三个分析函数⬇️
+
+// (State 1)解析请求行 
+// 📝 解析 HTTP 的第一行
+// 目标格式: GET /index.html HTTP/1.1
+HTTP_CODE http_conn::parse_request_line(char* text){
+
+    // 1. 解析请求方法 (GET/POST)
+    // m_url 此时指向字符串开头
+    // strpbrk: 在 text 中寻找第一个 ' ' 或 '\t' 的位置
+    m_url=strpbrk(text,"\t");
+
+    // 如果没找到空格，说明格式不对 (HTTP 请求行里必须有空格分隔)
+    if(!m_url){
+        return BAD_REQUEST;
+    }
+
+    // 把找到的那个空格变成 \0，这样前面的字符串就“断开”了
+    // 此时 text 变成了 "GET\0/index.html HTTP/1.1"
+    *m_url++='\0';
+
+    // 取出前面的方法存起来
+    char* method=text;
+    if(strcasecmp(method,"GET")==0){
+        m_method=GET;
+    }else if(strcasecmp(method,"POST")==0){
+        m_method=POST;
+    }else{
+        return BAD_REQUEST;// 目前只支持 GET 和 POST
+    }
+
+    // 2. 解析版本号 (HTTP/1.1)
+    // m_url 现在指向 "/index.html HTTP/1.1" (刚才跳过了第一个空格)
+    // strspn: 检索字符串中第一个不在 " \t" 中出现的字符下标 -> 也就是跳过连续的空格
+    m_url+=strspn(m_url,"\t");
+
+    // 继续找下一个空格，分隔 URL 和 Version
+    m_version=strpbrk(m_url,"\t");
+    if(!m_version){
+        return BAD_REQUEST;
+    }
+
+    // 同样，把空格变 \0，截断 URL
+    *m_version='\0';
+
+    // m_version 现在指向 "HTTP/1.1"
+    m_version+=strspn(m_version,"\t"); // 跳过空格
+
+    // 检查版本号是不是 HTTP/1.1
+    if(strcasecmp(m_version,"HTTP/1.1")!=0){
+        return BAD_REQUEST;
+    }
+
+    // 3. 解析 URL (/index.html)
+    // 有些客户端发的 URL 可能会带上协议头，比如 http://192.168.1.1/index.html
+    // 我们需要把前面的 http:// 剔除掉，只保留 /index.html
+    if(strncasecmp(m_url,"http://",7)==0){
+        m_url+=7; // 跳过 http://
+        // 找域名的结束位置 (第一个 /)
+        m_url=strchr(m_url,'/');
+    }
+
+    // 同样的逻辑处理 https
+    if(strncasecmp(m_url,"https://",8)==0){
+        m_url+=8;
+        m_url=strchr(m_url,'/');
+    }
+
+    // 正常情况下，URL 应该是 / 开头的
+    if(!m_url||m_url[0]!='/'){
+        return BAD_REQUEST;
+    }
+
+    // ⚠️ 特殊处理：如果你直接访问 http://localhost/，默认给你看 index.html
+    if(strlen(m_url)==1){
+        strcat(m_url,"index.html");
+    }
+
+    // ✅ 解析完毕！
+    // 状态转移：请求行分析完了，下一步该分析“头部字段”了
+    m_check_state=CHECK_STATE_HEADER;
+
+    return NO_REQUEST; // 还没结束，去处理 Header
+}
+
+// 解析头部字段 (State 2)
+// 📨 解析 HTTP 头部的一行
+// 例子: "Connection: keep-alive"
+HTTP_CODE http_conn::parse_headers(char* text){
+
+    // 🟢 情况 1: 遇到空行 (最关键的逻辑！)
+    // 为什么 text[0] 是 '\0'？
+    // 因为 parse_line 把 "\r\n" 变成了 "\0\0"。
+    // 如果这一行原本只有 "\r\n" (空行)，被切完后就只剩 "\0" 了。
+    if(text[0]=='\0'){
+
+        // 判断：如果有消息体 (比如 POST 请求，Content-Length > 0)
+        if(m_content_length!=0){
+            // 状态转移：头部读完了，还得去读身体 (Body)
+            m_check_state=CHECK_STATE_CONTENT;
+            return NO_REQUEST; // 还没结束，继续读
+        }
+
+        // 否则说明是 GET，且没有 Body，那整个请求彻底结束了！
+        return GET_REQUEST;
+    }
+
+    // 🟢 情况 2: 处理 Connection 头部
+    // strncasecmp: 比较前 11 个字符是不是 "Connection:"
+    else if(strncasecmp(text,"Connection:",11)==0){
+        text+=11;   // 跳过 "Connection:"
+        text+=strspn(text,"\t");// 跳过冒号后面的空格
+
+        // 看看值是不是 keep-alive
+        if(strcasecmp(text,"keep-alive")==0){
+            m_linger=true; // 记下来：这是一个长连接
+        }
+    }
+
+    // 🟢 情况 3: 处理 Content-Length 头部
+    else if(strncasecmp(text,"Content-Length:",15)==0){
+        text+=15;
+        text+=strspn(text,"\t");
+
+        // atol: ASCII to Long (把字符串 "1024" 转换成数字 1024)
+        m_content_length=atol(text);
+    }
+
+    // 🟢 情况 4: 处理 Host 头部
+    else if(strncasecmp(text,"Host:",5)==0){
+        text+=5;
+        text+=strspn(text,"\t");
+        m_host=text;
+    }
+
+    // 🟢 情况 5: 其他头部 (User-Agent, Accept 等)
+    else{
+        printf("oop! unknown header: %s\n", text);
+    }
+
+    return NO_REQUEST;
+}
+
+// 解析请求体 (State 3)
+// 📦 只有 POST 请求会走到这里
+// 判断依据很简单：缓冲区里剩下的数据 >= m_content_length
+HTTP_CODE http_conn::parse_content(char* text){
+
+    // m_read_idx: 读缓冲区现在的总长度 (recv 到的所有数据)
+    // m_checked_idx: 当前已经分析完的长度 (也就是 头部总长度)
+    // m_content_length: 刚才在 Header 里读出来的，客户承诺要发的数据量
+
+    // 公式：如果 (现在读到的总数) >= (头部长度 + 身体长度)
+    
+}
+
+// 🧠 核心大脑：分析 HTTP 请求
+HTTP_CODE http_conn::process_read(){
+
+    // 这两个变量是用来记录“切行”的结果
+    LINE_STATUS line_status=LINE_OK;
+    HTTP_CODE ret=NO_REQUEST;
+    char* text=0;
+
+    // 🔄 主循环
+    while((m_check_state==CHECK_STATE_CONTENT&&line_status==LINE_OK)
+        ||(line_status=parse_line())==LINE_OK){
+
+        // 获取刚才切出来的那一行数据的字符串
+        // get_line() 是一个小函数，其实就是 return m_read_buf + m_start_line;
+        text=get_line();
+
+        // 既然切出了一行，为了下一次切行做准备，把 m_start_line 更新一下
+        m_start_line=m_checked_idx;
+
+        // 打印日志 (可选)：看看这一行是啥
+        printf("got 1 http line: %s\n", text);
+
+        // 🔀 状态机核心：根据当前状态，决定怎么处理这一行
+        switch(m_check_state){
+
+            // 🏷️ 状态 1: 正在分析请求行 (例: "GET /index.html HTTP/1.1")
+            case CHECK_STATE_REQUESTLINE:{
+                ret=parse_request_line(text); // 调用子函数分析
+                if(ret==BAD_REQUEST){
+                    return BAD_REQUEST; // 格式错了，直接报错
+                }
+                break; //这一行处理完了，跳出 switch，去切下一行
+            }
+
+            // 📨 状态 2: 正在分析头部字段 (例: "Host: localhost")
+            case CHECK_STATE_HEADER:{
+                ret=parse_headers(text);
+                if(ret==BAD_REQUEST){
+                    return BAD_REQUEST;
+                }
+                // 关键点：如果 parse_headers 返回 GET_REQUEST，说明头读完了！
+                else if(ret==GET_REQUEST){
+                    // 也就是遇到了 ！！！！空行 ！！！！，意味着请求解析完毕，可以去准备响应了
+                    return do_request();
+                }
+                break;
+            }
+
+            // 📦 状态 3: 正在分析请求体 (仅 POST 请求会用到)
+            case CHECK_STATE_CONTENT:{
+                ret=parse_content(text);
+                if(ret==GET_REQUEST){
+                    return do_request(); // 体也读完了，去准备响应
+                }
+                // 如果返回 LINE_OPEN，说明体还没传完，得跳出循环继续读 socket
+                line_status=LINE_OPEN;
+                break;
+            }
+
+            // 💀 默认状态：出错了
+            default:{
+                return INTERNAL_ERROR;
+            }
+        }
+    }
+
+    // 🛑 循环结束了，通常是因为 parse_line 返回了 LINE_OPEN (数据不完整，只有半行)
+    // 或者是 buffer 读空了。
+    // 告诉上层：还没处理完，继续监听 socket，等剩下的数据发过来。
+    return NO_REQUEST;
+}
+
+// =================================================================
+// 7. 从状态机：切行 (把一行数据从缓冲区切出来)
+// =================================================================
+
+// 分析当前读取的一行内容
+// 返回值：
+// LINE_OK: 切好了一行
+// LINE_BAD: 语法错误
+// LINE_OPEN: 数据不完整，还要继续读
+LINE_STATUS http_conn::parse_line(){
+    char temp;
+
+    // m_checked_idx: 当前 正在分析的字符 在缓冲区的位置
+    // m_read_idx: 缓冲区里 最后有效数据 的下一个位置
+    for(;m_checked_idx<m_read_idx;++m_checked_idx){
+
+        // 拿到当前字符
+        temp=m_read_buf[m_checked_idx];
+
+        // 🟢 情况 1: 如果当前字符是 '\r' (回车)
+        if(temp=='\r'){
+
+            // 如果它已经是最后一个字符了，说明后面没东西了 -> 数据不完整
+            if((m_checked_idx+1)==m_read_idx){
+                return LINE_OPEN;
+            }
+
+            // 如果它的下一个字符是 '\n'，说明找到了一行结束！(\r\n)
+            else if(m_read_buf[m_checked_idx+1]=='\n'){
+                // 把 \r 和 \n 都改成 \0，这样前面的字符串就截断了
+                m_read_buf[m_checked_idx++]='\0';
+                m_read_buf[m_checked_idx++]='\0';
+                return LINE_OK; // 成功切出一行！
+            }
+
+            // 否则，说明语法错误 (HTTP 规定必须是 \r\n)
+            return LINE_BAD;
+        }
+
+        // 🟢 情况 2: 如果当前字符是 '\n' (换行)
+        // (有些时候 \r 会在上一轮循环被处理，这里处理 \n)
+        else if(temp=='\n'){
+
+            // 看看前一个字符是不是 \r
+            if((m_checked_idx>1)&&(m_read_buf[m_checked_idx-1]=='\r')){
+                // 是的话，把它们都改成 \0
+                m_read_buf[m_checked_idx-1]='\0';
+                m_read_buf[m_checked_idx++]='\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;
+        }
+    }
+
+    // 跑完循环都没找到 \r\n，说明这一行还没发完
+    return LINE_OPEN;
+}
+
