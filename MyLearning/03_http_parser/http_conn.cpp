@@ -444,11 +444,16 @@ HTTP_CODE http_conn::parse_headers(char* text){
 HTTP_CODE http_conn::parse_content(char* text){
 
     // m_read_idx: 读缓冲区现在的总长度 (recv 到的所有数据)
-    // m_checked_idx: 当前已经分析完的长度 (也就是 头部总长度)
+    // m_checked_idx: 当前已经分析完的长度 (也就是 头部总长度) body开始的位置
     // m_content_length: 刚才在 Header 里读出来的，客户承诺要发的数据量
 
     // 公式：如果 (现在读到的总数) >= (头部长度 + 身体长度)
-    
+    if(m_read_idx>=(m_content_length+m_checked_idx)){
+        text[m_content_length]='\0'; // 方便去打印日志
+        return GET_REQUEST;
+    }
+
+    return NO_REQUEST;
 }
 
 // 🧠 核心大脑：分析 HTTP 请求
@@ -579,5 +584,122 @@ LINE_STATUS http_conn::parse_line(){
 
     // 跑完循环都没找到 \r\n，说明这一行还没发完
     return LINE_OPEN;
+}
+
+// =================================================================
+// 8. 业务逻辑核心：处理请求 (do_request)
+// =================================================================
+
+// 📂 网站根目录 (存放 html, 图片等资源的文件夹路径)
+const char* doc_root="/Users/neroji/Desktop/MyTinyServer/resource file";
+
+HTTP_CODE http_conn::do_request(){
+
+    // m_real_file: 最终的物理路径 (doc_root + m_url)
+    // 先把根目录拷进去
+    strcpy(m_real_file,doc_root);
+    int len=strlen(doc_root);
+
+    // 再把 URL 拼接到后面
+    strncpy(m_real_file+len,m_url,FILENAME_LEN-len-1);
+
+    // 🔎 1. 获取文件状态 (stat 是 Linux 系统调用)
+    // m_file_stat 是 http_conn 类里的成员变量 (struct stat)
+    // 如果返回 -1，说明文件不存在 -> 404
+    if(stat(m_real_file,&m_file_stat)<0){
+        return NO_RESOURCE;
+    }
+
+    // 🔒 2. 权限检查 (S_IROTH: 其他人有读权限)
+    // 如果没有读权限 -> 403
+    if(!(m_file_stat.st_mode&S_IROTH)){
+        return FORBIDDEN_REQUEST;
+    }
+
+    // 📁 3. 检查是不是目录 (S_ISDIR)
+    // 如果请求的是个文件夹 (比如 /home/xxx/resources/) -> 400
+    if(S_ISDIR(m_file_stat.st_mode)){
+        return BAD_REQUEST;
+    }
+
+    // ✅ 文件检查通过！
+    // 接下来把文件映射到内存
+
+    // 以只读方式打开文件
+    int fd=open(m_real_file,O_RDONLY);// O_RDONLY：只读
+
+    // 调用 mmap
+    m_file_address=(char*)mmap(0,m_file_stat.st_size,PROT_READ,MAP_PRIVATE,fd,0);
+
+    // 映射完就可以关掉文件句柄了，内存映射依然有效
+    close(fd);
+
+    return FILE_REQUEST;
+}
+
+// =================================================================
+// 9. 响应构造辅助函数 (专门负责往 m_write_buf 里填数据)
+// =================================================================
+
+// 🖊️ 基础写函数：往 m_write_buf 里写入格式化字符串
+bool http_conn::add_response(const char* format,...){
+
+    // 如果写入位置超过了缓冲区大小，报错
+    if(m_write_idx>=WRITE_BUFFER_SIZE){
+        return false;
+    }
+
+    // 定义可变参数列表
+    va_list arg_list;
+    va_start(arg_list,format);
+
+    // vsnprintf: 把参数格式化成字符串，写入 m_write_buf
+    int len=vsnprintf(m_write_buf+m_write_idx,WRITE_BUFFER_SIZE-1-m_write_idx,format,arg_list);
+
+    // 如果写入失败，或者缓冲区不够大了
+    if(len>=(WRITE_BUFFER_SIZE-1-m_write_idx)){
+        return false;
+    }
+
+    // 更新写指针
+    m_write_idx+=len;
+    va_end(arg_list);
+
+    return true;
+}
+
+// 🏷️ 添加状态行 (例如: HTTP/1.1 200 OK)
+bool http_conn::add_status_line(int status,const char* title){
+    return add_response("%s %d %s\r\n","HTTP/1.1",status,title);
+}
+
+// 🏷️ 添加消息头 (Content-Length, Connection 等)
+bool http_conn::add_headers(int content_len){
+    add_content_length(content_len);
+    add_linger();
+    add_blank_line();
+    return true;
+}
+
+bool http_conn::add_content_length(int content_len){
+    return add_response("Content-Length: %d\r\n",content_len);
+}
+
+bool http_conn::add_linger(){
+    return add_response("Connection: %s\r\n",(m_linger==true)?"keep-alive":"close");
+}
+
+bool http_conn::add_blank_line(){
+    return add_response("%s","\r\n");
+}
+
+// 🏷️ 添加内容 (主要用于报错时写 "404 Not Found" 这种短文本)
+bool http_conn::add_content(const char* content){
+    return add_response("%s",content);
+}
+
+// 🏷️ 添加内容类型 (Content-Type)
+bool http_conn::add_content_type(){
+    return add_response("Content-Type:%s\r\n","text/html");
 }
 

@@ -20,6 +20,7 @@
 #include<stdarg.h>
 #include<errno.h>
 
+static const int FILENAME_LEN = 200; // 文件名最大长度
 
 // 1：主状态机 (当前正在分析哪一部分？)
 enum CHECK_STATE{
@@ -121,7 +122,7 @@ private:
     char* get_line(){return m_read_buf+m_start_line;}
 
     // 这一组函数被 process_write 调用以填充 HTTP 应答
-    void add_response(const char* format,...);
+    bool add_response(const char* format,...);
 
     bool add_status_line(int status,const char* title);
     bool add_headers(int content_length);
@@ -155,7 +156,6 @@ private:
     int m_write_idx;    // 写缓冲区中待发送的字节数
 
     // 📂 文件相关 (处理请求的文件)
-    char m_real_file[200];  // 客户请求的目标文件的完整路径
     char* m_url;            // 客户请求的目标文件名
     char* m_version;        // HTTP 协议版本
     char* m_host;           // 主机名
@@ -165,6 +165,7 @@ private:
     // 请求方法 (GET, POST 等)
     METHOD m_method;
 
+    char m_real_file[FILENAME_LEN]; // 拼接后的完整路径
     char* m_file_address;   // 客户请求的目标文件被 mmap 到内存中的起始位置
     struct stat m_file_stat;// 目标文件的状态 (判断文件是否存在、是否可读)
 
@@ -173,6 +174,7 @@ private:
     int m_iv_count;       // 这一次发送我们要用几个盘子？(1个还是2个)
     int bytes_to_send;    // 还有多少字节没发完？
     int bytes_have_send;  // 已经发了多少字节？
+
 };
 
 #endif
