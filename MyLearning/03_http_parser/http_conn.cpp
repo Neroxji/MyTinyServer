@@ -1,4 +1,5 @@
 #include "http_conn.h"
+//ps：到时候可以改成doxygen风格
 
 // =================================================================
 // 1. 静态成员初始化
@@ -256,6 +257,16 @@ bool http_conn::write(){
     }
 }
 
+//解除内存映射 (释放内存)
+// 🧹 清理函数：发完数据后，把 mmap 借用的那块内存还给操作系统
+void http_conn::unmap(){
+    // 如果 m_file_address 不是空的，说明之前映射过
+    if(m_file_address){
+        munmap(m_file_address,m_file_stat.st_size);
+        m_file_address=0; // 指针清零，防止变成野指针
+    }
+}
+
 // =================================================================
 // 5. 业务逻辑入口 (由线程池调用)
 // =================================================================
@@ -465,6 +476,7 @@ HTTP_CODE http_conn::process_read(){
     char* text=0;
 
     // 🔄 主循环
+    //前面的条件 例如情况是post请求并且解析到了最后一个空行（\r\n）
     while((m_check_state==CHECK_STATE_CONTENT&&line_status==LINE_OK)
         ||(line_status=parse_line())==LINE_OK){
 
@@ -537,6 +549,7 @@ HTTP_CODE http_conn::process_read(){
 // LINE_OK: 切好了一行
 // LINE_BAD: 语法错误
 // LINE_OPEN: 数据不完整，还要继续读
+
 LINE_STATUS http_conn::parse_line(){
     char temp;
 
@@ -703,3 +716,88 @@ bool http_conn::add_content_type(){
     return add_response("Content-Type:%s\r\n","text/html");
 }
 
+// =================================================================
+// 10. 构造响应包 (大管家 process_write)
+// =================================================================
+
+const char* error_404_form = "<html><body>404 Not Found</body></html>";
+const char* error_400_form = "<html><body>400 Bad Request</body></html>";
+const char* error_403_form = "<html><body>403 Forbidden</body></html>";
+const char* error_500_form = "<html><body>500 Internal Error</body></html>";
+
+// 根据 do_request 返回的状态码，决定给客户回什么信
+bool http_conn::process_write(HTTP_CODE ret){
+    switch(ret){
+
+        // 🟢 状态 1：文件正常，准备发送 (200 OK)
+        case FILE_REQUEST:
+            // 1. 让打字员写响应头
+            add_status_line(200,"OK");
+            if(m_file_stat.st_size!=0){
+                add_headers(m_file_stat.st_size);   // 告诉浏览器文件有多大
+
+                // 2. 核心操作：配置 iovec (分散写)
+                // 第一块内存：写好的响应头 (在 m_write_buf 里)
+                m_iv[0].iov_base=m_write_buf;
+                m_iv[0].iov_len=m_write_idx;
+
+                // 第二块内存：真正的大文件 (在 mmap 映射的内存里)
+                m_iv[1].iov_base=m_file_address;
+                m_iv[1].iov_len=m_file_stat.st_size;
+
+                // 告诉系统，我这有两个要一起发
+                m_iv_count=2;
+
+                // 记录一下总共要发送多少字节
+                bytes_to_send=m_write_idx+m_file_stat.st_size;
+                return true;
+            }else{
+                // 如果是个空文件
+                const char* ok_string="<html><body></body></html>";
+                add_headers(strlen(ok_string));
+                if(!add_content(ok_string)) return false;
+            }
+            break;
+
+        // 🔴 状态 2：找不到文件 
+        case NO_RESOURCE:
+            add_status_line(404,"Not Found");
+            add_headers(strlen(error_404_form));
+            if(!add_content(error_404_form)) return false;
+            break;
+
+        // 🔴 状态 3：请求语法错误 
+        case BAD_REQUEST:
+            add_status_line(400,"Bad Request");
+            add_headers(strlen(error_400_form));
+            if(!add_content(error_400_form)) return false;
+            break;
+
+        // 🔴 状态 4：没有权限 
+        case FORBIDDEN_REQUEST:
+            add_status_line(403, "Forbidden");
+            add_headers(strlen(error_403_form));
+            if (!add_content(error_403_form)) return false;
+            break;
+
+        // 🔴 状态 5：服务器内部错误 
+        case INTERNAL_ERROR:
+            add_status_line(500, "Internal Error");
+            add_headers(strlen(error_500_form));
+            if (!add_content(error_500_form)) return false;
+            break;
+
+        // 其他未知情况
+        default:
+            return false;
+    }
+
+    // 🎯 错误处理的统一出口
+    // 如果不是 200 OK，那说明不需要发送物理文件，只需要发 m_write_buf 里的报错网页就行了
+    m_iv[0].iov_base=m_write_buf;
+    m_iv[0].iov_len=m_write_idx;
+    m_iv_count=1; //只有1个
+    bytes_to_send=m_write_idx;  // 总字节数就是缓冲区的长度
+
+    return true;
+}
