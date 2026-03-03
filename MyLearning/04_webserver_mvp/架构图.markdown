@@ -1,0 +1,81 @@
+main()
+│
+├── new threadpool<http_conn>()
+│       └── [构造函数] for 8次:
+│               thread::thread(&threadpool::run)  ← 8个线程启动
+│                   └── run()
+│                       └── while(!m_stop):
+│                               wait()            ← 😴 等任务
+│                               request->process()
+│                               └── [见下方 process 链]
+│
+├── socket() / bind() / listen()
+│
+├── epoll_create()
+│       └── addfd(epollfd, listenfd, false)
+│               └── epoll_ctl(EPOLL_CTL_ADD)
+│               └── setnonblocking(listenfd)
+│
+└── while(true):              ← 主循环
+        │
+        ├── epoll_wait()      ← 阻塞等待
+        │
+        ├── [情况A] 新连接: sockfd == listenfd
+        │       accept()
+        │       users[connfd].init(connfd, addr)    ← 公有init
+        │           ├── addfd(m_epollfd, connfd, true)
+        │           │       └── epoll_ctl(EPOLL_CTL_ADD)
+        │           │       └── setnonblocking(connfd)
+        │           ├── m_user_count++
+        │           └── init()                      ← 私有init，变量归零
+        │
+        ├── [情况B] 断线: EPOLLRDHUP|EPOLLHUP|EPOLLERR
+        │       users[sockfd].close_conn()
+        │           ├── removefd(m_epollfd, m_sockfd)
+        │           │       └── epoll_ctl(EPOLL_CTL_DEL)
+        │           │       └── close(m_sockfd)
+        │           └── m_user_count--
+        │
+        ├── [情况C] 收到数据: EPOLLIN
+        │       users[sockfd].read_once()
+        │           └── while: recv(m_sockfd, m_read_buf+m_read_idx, ...)
+        │                       m_read_idx += bytes_read
+        │       pool->append(&users[sockfd])
+        │           ├── m_workqueue.push(request)
+        │           └── m_queuecond.notify_one()  → 🔔 唤醒工作线程
+        │               └── [工作线程] request->process()
+        │                       ├── process_read()
+        │                       │       └── while:
+        │                       │           ├── parse_line()          ← 从状态机
+        │                       │           │       扫描 \r\n，切出一行
+        │                       │           └── switch(m_check_state):
+        │                       │               ├── parse_request_line()
+        │                       │               │       解析 GET /url HTTP/1.1
+        │                       │               │       m_check_state → HEADER
+        │                       │               ├── parse_headers()
+        │                       │               │       解析 Connection/Content-Length/Host
+        │                       │               │       遇到空行 → do_request()
+        │                       │               └── parse_content()
+        │                       │                       POST body 够了 → do_request()
+        │                       │
+        │                       ├── do_request()
+        │                       │       stat(m_real_file)    检查文件
+        │                       │       open(m_real_file)
+        │                       │       mmap()  → m_file_address
+        │                       │       close(fd)
+        │                       │       return FILE_REQUEST
+        │                       │
+        │                       └── process_write(ret)
+        │                               add_status_line()   写状态行
+        │                               add_headers()       写响应头
+        │                               m_iv[0] = m_write_buf   响应头
+        │                               m_iv[1] = m_file_address 文件
+        │                               modfd(EPOLLOUT)  → 通知主线程
+        │
+        └── [情况D] 可以发数据: EPOLLOUT
+                users[sockfd].write()
+                    ├── writev(m_sockfd, m_iv, 2)  → 发送响应
+                    ├── unmap()                    → 释放 mmap
+                    └── m_linger?
+                            true  → init() + modfd(EPOLLIN)  长连接继续
+                            false → modfd(EPOLLIN) + return false → 关连接
