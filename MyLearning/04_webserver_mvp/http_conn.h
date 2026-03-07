@@ -42,7 +42,7 @@ enum LINE_STATUS{
 enum HTTP_CODE{
     NO_REQUEST,         // 请求不完整，需要继续读取客户端数据
     GET_REQUEST,        // 获得了一个完整的 GET 请求
-    BAD_REQUEST,        // 客户发来的数据看不懂 (语法错误)
+    BAD_REQUEST,        // 客户发来的数据看不懂 (400)
     NO_RESOURCE,        // 客户要的资源不存在 (404)
     FORBIDDEN_REQUEST,  // 客户没有权限 (403)
     FILE_REQUEST,       // 请求文件成功

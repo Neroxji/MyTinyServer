@@ -11,12 +11,10 @@ int http_conn::m_epollfd = -1;
 int http_conn::m_user_count = 0;
 
 // =================================================================
-// 2. Epoll 辅助函数 (这些是给 Epoll 打下手的工具函数)
+// 2. Epoll 辅助函数
 // =================================================================
 
 // 🔧 设置文件描述符为非阻塞 (Non-blocking)
-// 为什么要非阻塞？因为我们要配合 Epoll 的 ET (边缘触发) 模式！
-// 如果是阻塞的，recv 没数据时会把线程卡死，服务器就废了。
 int setnonblocking(int fd) {
 
   // fcntl 是 Linux 的文件控制函数 (File Control)
@@ -33,14 +31,10 @@ int setnonblocking(int fd) {
 }
 
 // 🔧 向 Epoll 中添加需要监听的文件描述符
-// fd: 要监听的 socket
-// one_shot: 是否开启 EPOLLONESHOT (防止多线程同时处理同一个连接)
 void addfd(int epollfd, int fd, bool one_shot) {
   epoll_event event;
   event.data.fd = fd;
 
-  // EPOLLIN:  别人发数据来了 (可读)
-  // EPOLLET:  边缘触发 (Edge Trigger)，高性能模式，只通知一次！
   // EPOLLRDHUP: TCP连接被对方关闭了
   event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
 
@@ -66,8 +60,6 @@ void removefd(int epollfd, int fd) {
 }
 
 // 🔧 修改文件描述符，重置 ONESHOT 事件
-// 场景：一个线程处理完读写后，这个 socket 就失效了(因为 ONESHOT)。
-// 必须调用这个函数，把它重新激活，让 Epoll 继续监控它。
 void modfd(int epollfd, int fd, int ev) {
   epoll_event event;
   event.data.fd = fd;
@@ -119,9 +111,7 @@ void http_conn::init() {
   m_linger = false;     // 默认不保持连接 (Connection: close)
   m_host = 0;
 
-  // 3. 物理清空缓冲区 (把桌子擦干净)
-  // 这一步其实不是必须的（因为游标归零了，新数据会覆盖旧数据），
-  // 但为了安全和调试方便，全部刷成 0 (\0)
+  // 3. 物理清空缓冲区
   memset(m_read_buf, '\0', READ_BUFFER_SIZE);
   memset(m_write_buf, '\0', WRITE_BUFFER_SIZE);
   memset(m_real_file, '\0', FILENAME_LEN);
@@ -145,8 +135,6 @@ void http_conn::close_conn() {
 // =================================================================
 
 // 📥 循环读取客户数据，直到无数据可读
-// 返回 true: 读取成功 (哪怕没读完，只要没出错)
-// 返回 false: 读出错了，或者对方关闭连接了 -> 需要 close_conn
 bool http_conn::read_once() {
   // 游标检查：如果缓冲区满了，就别读了，防止溢出
   if (m_read_idx >= READ_BUFFER_SIZE) {
@@ -157,9 +145,6 @@ bool http_conn::read_once() {
 
   // 🔄 开启循环
   while (true) {
-    // 1. m_read_buf + m_read_idx:
-    // 存到哪？(注意要接着上次写的地方往后写，不能覆盖！)
-    // 2. READ_BUFFER_SIZE - m_read_idx: 还能存多少？(防止越界)
     bytes_read = recv(m_sockfd, m_read_buf + m_read_idx,
                       READ_BUFFER_SIZE - m_read_idx, 0);
 
@@ -180,14 +165,15 @@ bool http_conn::read_once() {
     // ✅ 读到了数据
     // 更新游标，为了下一次循环读取做准备
     m_read_idx += bytes_read;
+
+    // 2
+    printf("[2] 读取到 %d 字节数据\n", bytes_read);
   }
 
   return true;
 }
 
 // 📤 往 socket 里写数据
-// 返回 true: 没出错 (至于发没发完，不一定，可能要等下一轮 Epoll 通知)
-// 返回 false: 出错了 (比如对方关连接了)
 bool http_conn::write() {
   ssize_t temp = 0;
 
@@ -222,7 +208,6 @@ bool http_conn::write() {
     bytes_to_send -= temp;
 
     // 更新 iovec 指针
-    // 因为 writev 不保证一次全发完，如果发了一半被截断了，
     // 下次必须从“断点”继续发，不能重头再来！
 
     // 情况 1: 头部 (iv[0]) 已经发完了，现在发的是文件 (iv[1])
@@ -241,6 +226,10 @@ bool http_conn::write() {
 
     // 🏁 所有的都发完了
     if (bytes_to_send <= 0) {
+
+      // 7
+      printf("[7] 响应发送完毕, 共%d字节\n", bytes_have_send);
+
       unmap(); // 释放文件内存
 
       // 决定下一步：是保持连接还是断开？
@@ -260,8 +249,6 @@ bool http_conn::write() {
 }
 
 //解除内存映射 (释放内存)
-// 🧹 清理函数：发完数据后，把 mmap
-// 借用的那块内存还给操作系统
 void http_conn::unmap() {
   // 如果 m_file_address 不是空的，说明之前映射过
   if (m_file_address) {
@@ -277,14 +264,14 @@ void http_conn::unmap() {
 // ⚙️ 处理 HTTP 请求的入口函数
 void http_conn::process() {
 
+  // 3
+  printf("[3] 开始处理 HTTP 请求\n");
+
   // 1. 【读解析】分析 HTTP 请求
-  // process_read 是接下来要写的核心大函数
-  // 它会返回一个“状态码”，告诉我们请求分析得怎么样了
   HTTP_CODE read_ret = process_read();
 
   // 🛑 情况 A: 请求不完整 (NO_REQUEST)
   // 比如客户只发了 "GET /ind"，还没发完。
-  // 这时候不能急着处理，得继续监听“读事件”，等客户把剩下的发过来。
   if (read_ret == NO_REQUEST) {
     modfd(m_epollfd, m_sockfd, EPOLLIN);
     return;
@@ -300,8 +287,6 @@ void http_conn::process() {
   }
 
   // ✅ 情况 C: 响应准备好了
-  // 告诉 Epoll：“我这边数据准备好了，一旦网卡空闲，就提醒我发送 (EPOLLOUT)”
-  // 只要 Epoll 触发 EPOLLOUT，主线程就会去调用我们之前写的 write() 函数
   modfd(m_epollfd, m_sockfd, EPOLLOUT);
 }
 
@@ -311,23 +296,24 @@ void http_conn::process() {
 
 // 三个分析函数⬇️
 
-// (State 1)解析请求行
-// 📝 解析 HTTP 的第一行
 // 目标格式: GET /index.html HTTP/1.1
 HTTP_CODE http_conn::parse_request_line(char *text) {
 
+  // 4
+  printf("[4] 解析请求行\n");
+
   // 1. 解析请求方法 (GET/POST)
-  // m_url 此时指向字符串开头
-  // strpbrk: 在 text 中寻找第一个 ' ' 或 '\t' 的位置
   m_url = strpbrk(text, " \t");
 
   // 如果没找到空格，说明格式不对 (HTTP 请求行里必须有空格分隔)
   if (!m_url) {
+    // printf("[DEBUG] no space in request line -> BAD_REQUEST\n");
     return BAD_REQUEST;
   }
 
   // 把找到的那个空格变成 \0，这样前面的字符串就“断开”了
   // 此时 text 变成了 "GET\0/index.html HTTP/1.1"
+
   *m_url++ = '\0';
 
   // 取出前面的方法存起来
@@ -353,7 +339,7 @@ HTTP_CODE http_conn::parse_request_line(char *text) {
   }
 
   // 同样，把空格变 \0，截断 URL
-  *m_version = '\0';
+  *m_version++ = '\0';
 
   // m_version 现在指向 "HTTP/1.1"
   m_version += strspn(m_version, " \t"); // 跳过空格
@@ -383,14 +369,15 @@ HTTP_CODE http_conn::parse_request_line(char *text) {
     return BAD_REQUEST;
   }
 
-  // ⚠️ 特殊处理：如果你直接访问
-  // http://localhost/，默认给你看 index.html
-  if (strlen(m_url) == 1) {
-    strcat(m_url, "index.html");
-  }
+  // ⚠️ 特殊处理： 如果你直接访问
+  // http://localhost/，默认给你看  index.html
+  // if (strlen(m_url) == 1) {
+  //   strcat(m_url, "index.html");
+  // }
 
   // ✅ 解析完毕！
   // 状态转移：请求行分析完了，下一步该分析“头部字段”了
+
   m_check_state = CHECK_STATE_HEADER;
 
   return NO_REQUEST; // 还没结束，去处理 Header
@@ -469,7 +456,7 @@ HTTP_CODE http_conn::parse_content(char *text) {
     return GET_REQUEST;
   }
 
-  return NO_REQUEST;
+  return NO_REQUEST; // 相当于哑弹！！！！！
 }
 
 // 🧠 核心大脑：分析 HTTP 请求
@@ -610,7 +597,7 @@ LINE_STATUS http_conn::parse_line() {
 // =================================================================
 
 // 📂 网站根目录 (存放 html, 图片等资源的文件夹路径)
-const char *doc_root = "/Users/neroji/Desktop/MyTinyServer/resource file";
+const char *doc_root = "/workspace/resource file";
 
 HTTP_CODE http_conn::do_request() {
 
@@ -622,22 +609,29 @@ HTTP_CODE http_conn::do_request() {
   // 再把 URL 拼接到后面
   strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);
 
+  // 5
+  printf("[5] 请求文件: %s\n", m_real_file);
+  // printf("[DEBUG] m_url = '%s', m_url len = %zu\n", m_url, strlen(m_url));
+
+  if (strlen(m_url) == 1 && m_url[0] == '/') {
+    strcat(m_real_file, "index.html");
+  }
+
   // 🔎 1. 获取文件状态 (stat 是 Linux 系统调用)
-  // m_file_stat 是 http_conn 类里的成员变量 (struct stat)
-  // 如果返回 -1，说明文件不存在 -> 404
   if (stat(m_real_file, &m_file_stat) < 0) {
+    // printf("[DEBUG] stat failed -> 404\n");
     return NO_RESOURCE;
   }
 
   // 🔒 2. 权限检查 (S_IROTH: 其他人有读权限)
-  // 如果没有读权限 -> 403
   if (!(m_file_stat.st_mode & S_IROTH)) {
+    // printf("[DEBUG] no read permission -> 403\n");
     return FORBIDDEN_REQUEST;
   }
 
   // 📁 3. 检查是不是目录 (S_ISDIR)
-  // 如果请求的是个文件夹 (比如 /home/xxx/resources/) -> 400
   if (S_ISDIR(m_file_stat.st_mode)) {
+    // printf("[DEBUG] is directory -> 400, path = '%s'\n", m_real_file);
     return BAD_REQUEST;
   }
 
@@ -735,6 +729,10 @@ const char *error_500_form = "<html><body>500 Internal Error</body></html>";
 
 // 根据 do_request 返回的状态码，决定给客户回什么信
 bool http_conn::process_write(HTTP_CODE ret) {
+
+  // 6
+  printf("[6] 生成响应, 状态码=%d\n", ret);
+
   switch (ret) {
 
   // 🟢 状态 1：文件正常，准备发送 (200 OK)

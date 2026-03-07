@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug TinyWebServer",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/MyLearning/04_webserver_mvp/server",
+            "args": [
+                "9006"
+            ],
+            "cwd": "${workspaceFolder}/MyLearning/04_webserver_mvp",
+            "preLaunchTask": "build_tinywebserver"
+        }
+    ]
+}

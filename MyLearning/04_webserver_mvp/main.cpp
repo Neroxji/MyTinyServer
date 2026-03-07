@@ -107,6 +107,9 @@ int main(int argc, char *argv[]) {
 
         // 给新客人分配一个服务员
         users[connfd].init(connfd, client_address);
+
+        printf("[1] 新客户 connfd=%d 已初始化\n", connfd);
+
       }
 
       // 🚨 情况 B：某个客人掉线了

@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build_tinywebserver",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-g",
+                "main.cpp",
+                "http_conn.cpp",
+                "-lpthread",
+                "-o",
+                "server"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/MyLearning/04_webserver_mvp"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
